@@ -32,7 +32,9 @@ const char* GetCardRegion() {
 
 #define GET_CARD(slot) CardChannels[slot]
 #define CARD_USE_GCI_FOLDER SelectedFileType == CARD_GCIFOLDER
-#define CARD_READY(slot) (CARD_USE_GCI_FOLDER ? true : std::filesystem::exists(CardChannels[slot]->cardFilename()))
+#define CARD_READY(slot)                                                                                              \
+  (CardChannels[slot] != nullptr &&                                                                                   \
+   CardChannels[slot]->probeCardFile(cardPaths[slot]).x0_error != aurora::card::ECardResult::NOCARD)
 #define CARD_STUB Log.debug("{} is stubbed.", __FUNCTION__);
 
 bool Initialized = false;
@@ -512,20 +514,18 @@ s32 CARDGetXferredBytes(const s32 chan) {
   CARD_STUB
   return CARD_RESULT_READY;
 }
-// these two funcs are out of scope for aurora::card. stubbed for now
 s32 CARDMount(const s32 chan, void* workArea [[maybe_unused]], CARDCallback detachCallback [[maybe_unused]]) {
   if (chan < 0 || chan >= 2) {
     return CARD_RESULT_FATAL_ERROR;
   }
-  
-  return CARD_RESULT_READY;
+  return CARD_READY(chan) ? CARD_RESULT_READY : CARD_RESULT_NOCARD;
 }
 s32 CARDMountAsync(const s32 chan, void* workArea [[maybe_unused]], const CARDCallback detachCallback [[maybe_unused]],
-                   const CARDCallback attachCallback [[maybe_unused]]) {
-  if (chan < 0 || chan >= 2) {
-    return CARD_RESULT_FATAL_ERROR;
-  }
-  return CARD_RESULT_READY;
+                   const CARDCallback attachCallback) {
+  const s32 result = CARDMount(chan, workArea, detachCallback);
+  if (attachCallback != nullptr)
+    attachCallback(chan, result);
+  return result;
 }
 
 s32 CARDOpen(const s32 chan, const char* fileName, CARDFileInfo* fileInfo) {
@@ -540,7 +540,7 @@ s32 CARDOpen(const s32 chan, const char* fileName, CARDFileInfo* fileInfo) {
   const auto res = card->openFile(fileName, handle);
   if (res == aurora::card::ECardResult::READY)
     CopyKabuFileHandleToDolphin(chan, handle, fileInfo);
-  else
+  else if (res != aurora::card::ECardResult::NOFILE)
     Log.error("Failed to open file: {}", fileName);
 
   return static_cast<s32>(res);
@@ -651,8 +651,7 @@ s32 CARDUnmount(const s32 chan) {
   if (chan < 0 || chan >= 2) {
     return CARD_RESULT_FATAL_ERROR;
   }
-  // TODO:
-  return CARD_RESULT_NOCARD;
+  return CARD_READY(chan) ? CARD_RESULT_READY : CARD_RESULT_NOCARD;
 }
 
 s32 CARDGetCurrentMode(const s32 chan, u32* mode [[maybe_unused]]) {

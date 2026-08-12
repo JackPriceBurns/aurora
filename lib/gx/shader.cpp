@@ -1165,11 +1165,11 @@ std::string build_shader_source(const ShaderConfig& config) noexcept {
       continue;
     }
     const auto& tcg = config.tcgs[i];
-    if (tcg.type == GX_TG_MTX3x4) {
-      vtxOutAttrs += fmt::format("\n    @location({}) tex{}_uvw: vec3f,", vtxOutIdx++, i);
-    } else {
-      vtxOutAttrs += fmt::format("\n    @location({}) tex{}_uv: vec2f,", vtxOutIdx++, i);
-    }
+    // GX carries S, T and Q to the TEV unit for every texgen. Even an ST
+    // (MTX2x4) texgen can acquire a non-unit Q from normalization followed by
+    // its post-transform, so retaining Q only for MTX3x4 loses projective
+    // texture coordinates.
+    vtxOutAttrs += fmt::format("\n    @location({}) tex{}_uvw: vec3f,", vtxOutIdx++, i);
     if (is_emboss_texgen(tcg.type)) {
       // Emboss bump: offset the source texcoord by the light projected onto tangent/binormal
       const u32 lightIdx = tcg.type - GX_TG_BUMP0;
@@ -1177,10 +1177,11 @@ std::string build_shader_source(const ShaderConfig& config) noexcept {
           "\n    let bump_ldir{0} = normalize(ubuf.lights[{1}].pos - mv_pos);"
           "\n    let bump_tan{0} = vec4f(in_tangent, 0.0) * ubuf.nrm_mtx[in_pnmtxidx];"
           "\n    let bump_bin{0} = vec4f(in_binrm, 0.0) * ubuf.nrm_mtx[in_pnmtxidx];"
-          "\n    out.tex{0}_uv = tc{2}_proj.xy + vec2f(dot(bump_ldir{0}, bump_tan{0}), dot(bump_ldir{0}, "
-          "bump_bin{0}));",
+          "\n    out.tex{0}_uvw = tc{2}_proj.xyz + vec3f(dot(bump_ldir{0}, bump_tan{0}), dot(bump_ldir{0}, "
+          "bump_bin{0}), 0.0);",
           i, lightIdx, tcg.embossSrc);
-      fragmentFnPre += fmt::format("\n    var tex{0}_uv = in.tex{0}_uv.xy;", i);
+      fragmentFnPre += fmt::format(
+          "\n    var tex{0}_uv = in.tex{0}_uvw.xy / select(in.tex{0}_uvw.z, 1.0, in.tex{0}_uvw.z == 0.0);", i);
       continue;
     }
     if (tcg.src >= GX_TG_TEX0 && tcg.src <= GX_TG_TEX7) {
@@ -1242,13 +1243,9 @@ std::string build_shader_source(const ShaderConfig& config) noexcept {
           "\n    }}",
           i);
     }
-    if (tcg.type == GX_TG_MTX3x4) {
-      vtxXfrAttrs += fmt::format("\n    out.tex{0}_uvw = tc{0}_proj.xyz;", i);
-      fragmentFnPre += fmt::format("\n    var tex{0}_uv = in.tex{0}_uvw.xy / in.tex{0}_uvw.z;", i);
-    } else {
-      vtxXfrAttrs += fmt::format("\n    out.tex{0}_uv = tc{0}_proj.xy;", i);
-      fragmentFnPre += fmt::format("\n    var tex{0}_uv = in.tex{0}_uv.xy;", i);
-    }
+    vtxXfrAttrs += fmt::format("\n    out.tex{0}_uvw = tc{0}_proj.xyz;", i);
+    fragmentFnPre += fmt::format(
+        "\n    var tex{0}_uv = in.tex{0}_uvw.xy / select(in.tex{0}_uvw.z, 1.0, in.tex{0}_uvw.z == 0.0);", i);
   }
   // Multiple TEV stages may reference the same indirect stage,
   // so we sample each indirect texture only once.
@@ -1291,8 +1288,8 @@ std::string build_shader_source(const ShaderConfig& config) noexcept {
                     texCoordId, ind_scale(indStage.scaleS), ind_scale(indStage.scaleT), texMapId);
     fragmentFnPre += fmt::format(
         "\n    // Indirect stage {0}"
-        "\n    var t_IndTexCoord{0} = 255.0 * textureSampleBias(tex{1}, tex{1}_samp, {2}, "
-        "ubuf.tex{1}_size_bias.z).abg;",
+        "\n    var t_IndTexCoord{0} = round(255.0 * textureSampleBias(tex{1}, tex{1}_samp, {2}, "
+        "ubuf.tex{1}_size_bias.z).abg);",
         i, texMapId, scaleExpr);
   }
   if (info.usedIndStages.any()) {
@@ -1470,9 +1467,10 @@ std::string build_shader_source(const ShaderConfig& config) noexcept {
       // No indirect texturing
       uvIn = fmt::format("tex{0}_uv", underlying(stage.texCoordId));
     }
-    fragmentFnPre +=
-        fmt::format("\n    var sampled{0} = textureSampleBias(tex{1}, tex{1}_samp, {2}, ubuf.tex{1}_size_bias.z);", i,
-                    underlying(stage.texMapId), uvIn);
+    fragmentFnPre += fmt::format(
+        "\n    var sampled{0} = round(255.0 * textureSampleBias(tex{1}, tex{1}_samp, {2}, "
+        "ubuf.tex{1}_size_bias.z)) / 255.0;",
+        i, underlying(stage.texMapId), uvIn);
   }
   if (info.usesPTTexMtx.any())
     uniBufAttrs += fmt::format("\n    postmtx: array<mat3x4f, {}>,", MaxPTTexMtx);
