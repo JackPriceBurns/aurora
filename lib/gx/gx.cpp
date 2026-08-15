@@ -158,6 +158,13 @@ wgpu::BlendState to_blend_state(GXBlendMode mode, GXBlendFactor srcFac, GXBlendF
           .dstFactor = wgpu::BlendFactor::One,
       };
       break;
+    case GX_LO_OR:
+      colorBlendComponent = {
+          .operation = wgpu::BlendOperation::Add,
+          .srcFactor = wgpu::BlendFactor::One,
+          .dstFactor = wgpu::BlendFactor::One,
+      };
+      break;
     }
     break;
   }
