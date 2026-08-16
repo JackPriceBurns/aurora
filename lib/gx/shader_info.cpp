@@ -27,29 +27,46 @@ Vec4<float> texture_size_bias(const gfx::TextureBind& tex) {
   return {width, height, tex.texObj.lod_bias() + vpBias, 0.0f};
 }
 
-void color_arg_reg_info(GXTevColorArg arg, const TevStage& stage, ShaderInfo& info) {
+void color_arg_reg_info(GXTevColorArg arg, const TevStage& stage, ShaderInfo& info,
+                        const std::bitset<MaxTevRegs>& writtenColor, const std::bitset<MaxTevRegs>& writtenAlpha) {
   switch (arg) {
   case GX_CC_CPREV:
+    if (!writtenColor.test(GX_TEVPREV)) {
+      info.loadsTevReg.set(GX_TEVPREV);
+    }
+    break;
   case GX_CC_APREV:
-    if (!info.writesTevReg.test(GX_TEVPREV)) {
+    if (!writtenAlpha.test(GX_TEVPREV)) {
       info.loadsTevReg.set(GX_TEVPREV);
     }
     break;
   case GX_CC_C0:
+    if (!writtenColor.test(GX_TEVREG0)) {
+      info.loadsTevReg.set(GX_TEVREG0);
+    }
+    break;
   case GX_CC_A0:
-    if (!info.writesTevReg.test(GX_TEVREG0)) {
+    if (!writtenAlpha.test(GX_TEVREG0)) {
       info.loadsTevReg.set(GX_TEVREG0);
     }
     break;
   case GX_CC_C1:
+    if (!writtenColor.test(GX_TEVREG1)) {
+      info.loadsTevReg.set(GX_TEVREG1);
+    }
+    break;
   case GX_CC_A1:
-    if (!info.writesTevReg.test(GX_TEVREG1)) {
+    if (!writtenAlpha.test(GX_TEVREG1)) {
       info.loadsTevReg.set(GX_TEVREG1);
     }
     break;
   case GX_CC_C2:
+    if (!writtenColor.test(GX_TEVREG2)) {
+      info.loadsTevReg.set(GX_TEVREG2);
+    }
+    break;
   case GX_CC_A2:
-    if (!info.writesTevReg.test(GX_TEVREG2)) {
+    if (!writtenAlpha.test(GX_TEVREG2)) {
       info.loadsTevReg.set(GX_TEVREG2);
     }
     break;
@@ -107,25 +124,26 @@ void color_arg_reg_info(GXTevColorArg arg, const TevStage& stage, ShaderInfo& in
   }
 }
 
-void alpha_arg_reg_info(GXTevAlphaArg arg, const TevStage& stage, ShaderInfo& info) {
+void alpha_arg_reg_info(GXTevAlphaArg arg, const TevStage& stage, ShaderInfo& info,
+                        const std::bitset<MaxTevRegs>& writtenAlpha) {
   switch (arg) {
   case GX_CA_APREV:
-    if (!info.writesTevReg.test(GX_TEVPREV)) {
+    if (!writtenAlpha.test(GX_TEVPREV)) {
       info.loadsTevReg.set(GX_TEVPREV);
     }
     break;
   case GX_CA_A0:
-    if (!info.writesTevReg.test(GX_TEVREG0)) {
+    if (!writtenAlpha.test(GX_TEVREG0)) {
       info.loadsTevReg.set(GX_TEVREG0);
     }
     break;
   case GX_CA_A1:
-    if (!info.writesTevReg.test(GX_TEVREG1)) {
+    if (!writtenAlpha.test(GX_TEVREG1)) {
       info.loadsTevReg.set(GX_TEVREG1);
     }
     break;
   case GX_CA_A2:
-    if (!info.writesTevReg.test(GX_TEVREG2)) {
+    if (!writtenAlpha.test(GX_TEVREG2)) {
       info.loadsTevReg.set(GX_TEVREG2);
     }
     break;
@@ -204,26 +222,30 @@ ShaderInfo build_shader_info(const ShaderConfig& config) noexcept {
   info.uniformSize += sizeof(Mat3x4<float>) * 30;
   info.uniformSize += 16; // active PN matrix index + padding
 
+  std::bitset<MaxTevRegs> writtenColor;
+  std::bitset<MaxTevRegs> writtenAlpha;
   for (int i = 0; i < config.tevStageCount; ++i) {
     const auto& stage = config.tevStages[i];
-    // Color pass
-    color_arg_reg_info(stage.colorPass.a, stage, info);
-    color_arg_reg_info(stage.colorPass.b, stage, info);
-    color_arg_reg_info(stage.colorPass.c, stage, info);
-    color_arg_reg_info(stage.colorPass.d, stage, info);
-    info.writesTevReg.set(stage.colorOp.outReg);
+    // Both passes read the register file before this stage's writes commit
+    color_arg_reg_info(stage.colorPass.a, stage, info, writtenColor, writtenAlpha);
+    color_arg_reg_info(stage.colorPass.b, stage, info, writtenColor, writtenAlpha);
+    color_arg_reg_info(stage.colorPass.c, stage, info, writtenColor, writtenAlpha);
+    color_arg_reg_info(stage.colorPass.d, stage, info, writtenColor, writtenAlpha);
+    alpha_arg_reg_info(stage.alphaPass.a, stage, info, writtenAlpha);
+    alpha_arg_reg_info(stage.alphaPass.b, stage, info, writtenAlpha);
+    alpha_arg_reg_info(stage.alphaPass.c, stage, info, writtenAlpha);
+    alpha_arg_reg_info(stage.alphaPass.d, stage, info, writtenAlpha);
 
-    // Alpha pass
-    alpha_arg_reg_info(stage.alphaPass.a, stage, info);
-    alpha_arg_reg_info(stage.alphaPass.b, stage, info);
-    alpha_arg_reg_info(stage.alphaPass.c, stage, info);
-    alpha_arg_reg_info(stage.alphaPass.d, stage, info);
-    if (!info.writesTevReg.test(stage.alphaOp.outReg)) {
-      // If we're writing alpha to a register that's not been
-      // written to in the shader, load from uniform buffer
+    // Color writes only touch rgb; alpha writes only touch a. A register first
+    // touched by an alpha-only write still needs its rgb loaded (and vice versa
+    // via the read tracking above) so the untouched components stay defined.
+    if (!writtenColor.test(stage.alphaOp.outReg) && !writtenAlpha.test(stage.alphaOp.outReg)) {
       info.loadsTevReg.set(stage.alphaOp.outReg);
-      info.writesTevReg.set(stage.alphaOp.outReg);
     }
+    writtenColor.set(stage.colorOp.outReg);
+    writtenAlpha.set(stage.alphaOp.outReg);
+    info.writesTevReg.set(stage.colorOp.outReg);
+    info.writesTevReg.set(stage.alphaOp.outReg);
   }
   for (int i = 0; i < config.tevStageCount; ++i) {
     const auto& stage = config.tevStages[i];
