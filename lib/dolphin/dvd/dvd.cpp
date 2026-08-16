@@ -1,4 +1,5 @@
 #include <aurora/dvd.h>
+#include <dolphin/ai.h>
 #include <dolphin/dvd.h>
 
 #include <algorithm>
@@ -846,12 +847,12 @@ int DVDGetStreamPlayAddrAsync(DVDCommandBlock* block, DVDCBCallback callback) {
   if (block == nullptr || !isCommandBlockIdle(block)) {
     return FALSE;
   }
-  return completeImmediateCommand(block, DVD_COMMAND_REQUEST_PLAY_ADDR, DVD_RESULT_IGNORED, 0, callback);
+  return completeImmediateCommand(block, DVD_COMMAND_REQUEST_PLAY_ADDR, AIGetStreamPlayState(), 0, callback);
 }
 
 s32 DVDGetStreamPlayAddr(DVDCommandBlock* block) {
   (void)block;
-  return 0;
+  return AIGetStreamPlayState();
 }
 
 int DVDGetStreamStartAddrAsync(DVDCommandBlock* block, DVDCBCallback callback) {
