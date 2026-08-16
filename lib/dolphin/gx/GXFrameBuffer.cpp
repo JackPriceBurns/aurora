@@ -61,7 +61,7 @@ void copy_tex(const void* dest, GXBool clear) noexcept {
   }
   auto& handle = it->second;
 
-  if (g_gxState.alphaUpdate && g_gxState.dstAlpha != UINT32_MAX) {
+  if (efb_has_alpha() && g_gxState.alphaUpdate && g_gxState.dstAlpha != UINT32_MAX) {
     if (!clear) {
       // TODO: figure out the right behavior here.
       // should the copy have a specific alpha value but the EFB remains untouched?
@@ -79,7 +79,11 @@ void copy_tex(const void* dest, GXBool clear) noexcept {
   const auto clearColor = clear && g_gxState.colorUpdate;
   const auto clearAlpha = clear && g_gxState.alphaUpdate;
   const auto clearDepth = clear && g_gxState.depthUpdate;
-  gfx::resolve_pass_into(handle.handle, rect, clearColor, clearAlpha, clearDepth, g_gxState.clearColor,
+  auto clearColorValue = g_gxState.clearColor;
+  if (!efb_has_alpha()) {
+    clearColorValue.w() = 1.f;
+  }
+  gfx::resolve_pass_into(handle.handle, rect, clearColor, clearAlpha, clearDepth, clearColorValue,
                          clear_depth_value(), texCopyFmt);
   ++handle.revision;
   g_gxState.copyTextures[dest] = handle;

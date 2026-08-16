@@ -435,13 +435,13 @@ void populate_pipeline_config(PipelineConfig& config, GXPrimitive primitive, GXV
       .blendFacSrc = g_gxState.blendFacSrc,
       .blendFacDst = g_gxState.blendFacDst,
       .blendOp = g_gxState.blendOp,
-      .dstAlpha = g_gxState.dstAlpha,
+      .dstAlpha = efb_has_alpha() ? g_gxState.dstAlpha : UINT32_MAX,
       .polygonOffsetBits = std::bit_cast<uint32_t>(polygonOffset),
       .polygonOffsetScaleBits = std::bit_cast<uint32_t>(polygonOffsetScale),
       .polygonOffsetClampBits = std::bit_cast<uint32_t>(g_gxState.clamp),
       .depthCompare = g_gxState.depthCompare,
       .depthUpdate = g_gxState.depthUpdate,
-      .alphaUpdate = g_gxState.alphaUpdate,
+      .alphaUpdate = g_gxState.alphaUpdate && efb_has_alpha(),
       .colorUpdate = g_gxState.colorUpdate,
   };
 }

@@ -394,6 +394,8 @@ struct GXState {
 extern GXState g_gxState;
 struct ShaderInfo;
 
+inline bool efb_has_alpha() { return g_gxState.pixelFmt == GX_PF_RGBA6_Z24; }
+
 void initialize() noexcept;
 void shutdown() noexcept;
 void clear_static_texture_cache() noexcept;

@@ -1,5 +1,6 @@
 #include "command_processor.hpp"
 
+#include "../gfx/clear.hpp"
 #include "../gfx/common.hpp"
 #include "../gfx/depth_peek.hpp"
 #include "dolphin/gx/GXAurora.h"
@@ -499,6 +500,26 @@ void process(const u8* data, u32 size, bool bigEndian) {
 // Helper to extract bit fields from a 32-bit register
 inline static u32 bp_get(u32 reg, u32 size, u32 shift) { return reg >> shift & (1u << size) - 1; }
 
+// Alpha-less EFB formats read back alpha as 1.0 everywhere; seed the EFB's
+// alpha plane once so masked-off alpha writes keep the invariant from then on.
+static void set_pixel_fmt(GXPixelFmt fmt) {
+  static bool alphaSeeded = false;
+  const bool changed = fmt != g_gxState.pixelFmt;
+  g_gxState.pixelFmt = fmt;
+  if (fmt != GX_PF_RGBA6_Z24 && (changed || !alphaSeeded)) {
+    alphaSeeded = true;
+    gfx::push_draw_command(gfx::clear::DrawData{
+        .pipeline = gfx::pipeline_ref(gfx::clear::PipelineConfig{
+            .msaaSamples = gfx::get_sample_count(),
+            .clearColor = false,
+            .clearAlpha = true,
+            .clearDepth = false,
+        }),
+        .color = wgpu::Color{0.0, 0.0, 0.0, 1.0},
+    });
+  }
+}
+
 // BP register handler - decodes BP (RAS/pixel engine) register writes and updates g_gxState
 static void handle_bp(u32 value, bool bigEndian) {
   u32 regId = (value >> 24) & 0xFF;
@@ -782,14 +803,14 @@ static void handle_bp(u32 value, bool bigEndian) {
     u8 alpha = bp_get(value, 8, 0);
     bool enabled = bp_get(value, 1, 8) != 0;
     g_gxState.dstAlpha = enabled ? alpha : UINT32_MAX;
-    g_gxState.pixelFmt = decode_pixel_fmt(g_gxState.bpRegCache[0x43], value);
+    set_pixel_fmt(decode_pixel_fmt(g_gxState.bpRegCache[0x43], value));
     g_gxState.stateDirty = true;
     break;
   }
 
   // PE control (0x43) - pixel format, z format, zcomp location
   case 0x43: {
-    g_gxState.pixelFmt = decode_pixel_fmt(value, g_gxState.bpRegCache[0x42]);
+    set_pixel_fmt(decode_pixel_fmt(value, g_gxState.bpRegCache[0x42]));
     g_gxState.zFmt = static_cast<GXZFmt16>(bp_get(value, 3, 3));
     g_gxState.zCompLocBeforeTex = bp_get(value, 1, 6) != 0;
     g_gxState.stateDirty = true;

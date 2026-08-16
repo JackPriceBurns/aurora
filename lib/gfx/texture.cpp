@@ -35,6 +35,12 @@ bool setup_swizzle(wgpu::TextureComponentSwizzleDescriptor& swizzle, u32 format)
   }
 
   switch (format) {
+  case GX_TF_RGB565:
+    swizzle.swizzle.r = wgpu::ComponentSwizzle::R;
+    swizzle.swizzle.g = wgpu::ComponentSwizzle::G;
+    swizzle.swizzle.b = wgpu::ComponentSwizzle::B;
+    swizzle.swizzle.a = wgpu::ComponentSwizzle::One;
+    return true;
   case GX_TF_R8_PC:
     swizzle.swizzle.r = wgpu::ComponentSwizzle::R;
     swizzle.swizzle.g = wgpu::ComponentSwizzle::R;
@@ -175,6 +181,11 @@ TextureHandle new_render_texture(uint32_t width, uint32_t height, u32 gxFormat, 
   };
   auto attachmentTextureView = texture.CreateView(&textureViewDescriptor);
   wgpu::TextureView sampleTextureView = attachmentTextureView;
+  wgpu::TextureComponentSwizzleDescriptor swizzle;
+  if (setup_swizzle(swizzle, gxFormat)) {
+    textureViewDescriptor.nextInChain = &swizzle;
+    sampleTextureView = texture.CreateView(&textureViewDescriptor);
+  }
   return std::make_shared<TextureRef>(std::move(texture), std::move(sampleTextureView),
                                       std::move(attachmentTextureView), size, wgpuFormat, 1, gxFormat);
 }
