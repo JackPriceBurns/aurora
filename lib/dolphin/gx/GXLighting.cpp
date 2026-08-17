@@ -182,12 +182,25 @@ void GXSetChanAmbColor(GXChannelID id, GXColor color) {
   CHECK(id >= GX_COLOR0 && id <= GX_ALPHA1, "bad channel {}", static_cast<int>(id));
 
   // XF ambient color registers: 0x100A (chan 0), 0x100B (chan 1)
-  u32 packed = (static_cast<u32>(color.r) << 24) | (static_cast<u32>(color.g) << 16) |
-               (static_cast<u32>(color.b) << 8) | static_cast<u32>(color.a);
-  if (id == GX_COLOR0 || id == GX_ALPHA0) {
+  u32 packed;
+  if (id == GX_COLOR0 || id == GX_COLOR1) {
+    packed = (static_cast<u32>(color.r) << 24) | (static_cast<u32>(color.g) << 16) |
+             (static_cast<u32>(color.b) << 8);
+  }
+  if (id == GX_COLOR0) {
+    packed |= __gx->ambColor[0] & 0xFF;
+    __gx->ambColor[0] = packed;
+    GX_WRITE_XF_REG(0xA, packed);
+  } else if (id == GX_COLOR1) {
+    packed |= __gx->ambColor[1] & 0xFF;
+    __gx->ambColor[1] = packed;
+    GX_WRITE_XF_REG(0xB, packed);
+  } else if (id == GX_ALPHA0) {
+    packed = (__gx->ambColor[0] & 0xFFFFFF00) | static_cast<u32>(color.a);
     __gx->ambColor[0] = packed;
     GX_WRITE_XF_REG(0xA, packed);
   } else {
+    packed = (__gx->ambColor[1] & 0xFFFFFF00) | static_cast<u32>(color.a);
     __gx->ambColor[1] = packed;
     GX_WRITE_XF_REG(0xB, packed);
   }
@@ -207,12 +220,25 @@ void GXSetChanMatColor(GXChannelID id, GXColor color) {
   CHECK(id >= GX_COLOR0 && id <= GX_ALPHA1, "bad channel {}", static_cast<int>(id));
 
   // XF material color registers: 0x100C (chan 0), 0x100D (chan 1)
-  u32 packed = (static_cast<u32>(color.r) << 24) | (static_cast<u32>(color.g) << 16) |
-               (static_cast<u32>(color.b) << 8) | static_cast<u32>(color.a);
-  if (id == GX_COLOR0 || id == GX_ALPHA0) {
+  u32 packed;
+  if (id == GX_COLOR0 || id == GX_COLOR1) {
+    packed = (static_cast<u32>(color.r) << 24) | (static_cast<u32>(color.g) << 16) |
+             (static_cast<u32>(color.b) << 8);
+  }
+  if (id == GX_COLOR0) {
+    packed |= __gx->matColor[0] & 0xFF;
+    __gx->matColor[0] = packed;
+    GX_WRITE_XF_REG(0xC, packed);
+  } else if (id == GX_COLOR1) {
+    packed |= __gx->matColor[1] & 0xFF;
+    __gx->matColor[1] = packed;
+    GX_WRITE_XF_REG(0xD, packed);
+  } else if (id == GX_ALPHA0) {
+    packed = (__gx->matColor[0] & 0xFFFFFF00) | static_cast<u32>(color.a);
     __gx->matColor[0] = packed;
     GX_WRITE_XF_REG(0xC, packed);
   } else {
+    packed = (__gx->matColor[1] & 0xFFFFFF00) | static_cast<u32>(color.a);
     __gx->matColor[1] = packed;
     GX_WRITE_XF_REG(0xD, packed);
   }
