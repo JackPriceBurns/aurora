@@ -1239,7 +1239,7 @@ std::string build_shader_source(const ShaderConfig& config) noexcept {
       // GX_LINES / GX_LINESTRIP: offset one axis for perpendicular side
       vtxXfrAttrs += fmt::format(
           "\n    if ((ubuf.line_texcoord_mask & (1u << {0})) != 0u && (vidx & 1u) != 0u) {{"
-          "\n        tc{0}_proj.y += ubuf.line_tex_offset;"
+          "\n        tc{0}_proj.x += ubuf.line_tex_offset;"
           "\n    }}",
           i);
     }
