@@ -9,6 +9,7 @@
 #include "../card/DolphinCardPath.hpp"
 #include "../logging.hpp"
 #include "../card/CardGciFolder.hpp"
+#include "../card/FileIO.hpp"
 #include "../fs_helper.hpp"
 
 namespace {
@@ -152,6 +153,27 @@ void CARDSetBasePath(const char* path, const s32 chan) {
   }
 }
 
+void CARDSetCardImagePath(const char* path, const s32 chan) {
+  if (Initialized) {
+    Log.fatal("CARDSetCardImagePath() called after CARDInit()!");
+  }
+
+  const std::filesystem::path filePath(path);
+  if (filePath.empty()) {
+    return;
+  }
+
+  std::error_code ec;
+  std::filesystem::create_directories(filePath.parent_path(), ec);
+  if (ec) {
+    Log.warn("Failed to create card directory '{}': {}", fs_path_to_string(filePath.parent_path()),
+             ec.message());
+  }
+
+  cardPaths[chan == 1 ? 1 : 0] = filePath;
+  Log.info("Card image path set to: {}", fs_path_to_string(filePath));
+}
+
 void CARDSetLoadType(CARDFileType type) {
   SelectedFileType = type;
 }
@@ -204,6 +226,15 @@ void CARDInit(const char* game, const char* maker) {
 
   // create a SlotA card if no cards were loaded
   if (!loadedCard) {
+    std::error_code createEc;
+    std::filesystem::create_directories(cardPaths[0].parent_path(), createEc);
+
+    // A raw image is a single file and FileIO opens r+b, which will not create one. Without this
+    // the format below has no handle to commit through and silently produces no card.
+    if (SelectedFileType == CARD_RAWIMAGE && !std::filesystem::exists(cardPaths[0], createEc)) {
+      aurora::card::FileIO(cardPaths[0], true);
+    }
+
     CardChannels[0]->open(cardPaths[0]);
     CardChannels[0]->format(aurora::card::ECardSlot::SlotA);
     CardChannels[0]->close();
