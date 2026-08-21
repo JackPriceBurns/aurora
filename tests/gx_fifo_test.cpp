@@ -608,7 +608,7 @@ TEST_F(GXFifoTest, TevKColorSel_Stage0_K0) {
   reset_gx_state();
   decode_fifo(bytes);
 
-  EXPECT_EQ(g_gxState.tevStages[0].kcSel, GX_TEV_KCSEL_K0);
+  EXPECT_EQ(g_gxState.tevKColorSels[0], GX_TEV_KCSEL_K0);
 }
 
 TEST_F(GXFifoTest, TevKColorSel_Stage1_K2_R) {
@@ -618,7 +618,7 @@ TEST_F(GXFifoTest, TevKColorSel_Stage1_K2_R) {
   reset_gx_state();
   decode_fifo(bytes);
 
-  EXPECT_EQ(g_gxState.tevStages[1].kcSel, GX_TEV_KCSEL_K2_R);
+  EXPECT_EQ(g_gxState.tevKColorSels[1], GX_TEV_KCSEL_K2_R);
 }
 
 TEST_F(GXFifoTest, TevKAlphaSel_Stage0_K1_A) {
@@ -628,7 +628,7 @@ TEST_F(GXFifoTest, TevKAlphaSel_Stage0_K1_A) {
   reset_gx_state();
   decode_fifo(bytes);
 
-  EXPECT_EQ(g_gxState.tevStages[0].kaSel, GX_TEV_KASEL_K1_A);
+  EXPECT_EQ(g_gxState.tevKAlphaSels[0], GX_TEV_KASEL_K1_A);
 }
 
 TEST_F(GXFifoTest, TevKAlphaSel_Stage3_K3_B) {
@@ -638,7 +638,7 @@ TEST_F(GXFifoTest, TevKAlphaSel_Stage3_K3_B) {
   reset_gx_state();
   decode_fifo(bytes);
 
-  EXPECT_EQ(g_gxState.tevStages[3].kaSel, GX_TEV_KASEL_K3_B);
+  EXPECT_EQ(g_gxState.tevKAlphaSels[3], GX_TEV_KASEL_K3_B);
 }
 
 TEST_F(GXFifoTest, TevKColorSel_DoesNotCorruptSwapTable) {
@@ -656,7 +656,7 @@ TEST_F(GXFifoTest, TevKColorSel_DoesNotCorruptSwapTable) {
   EXPECT_EQ(g_gxState.tevSwapTable[0].blue, GX_CH_BLUE);
   EXPECT_EQ(g_gxState.tevSwapTable[0].alpha, GX_CH_ALPHA);
   // K color selection should still be set
-  EXPECT_EQ(g_gxState.tevStages[0].kcSel, GX_TEV_KCSEL_K0);
+  EXPECT_EQ(g_gxState.tevKColorSels[0], GX_TEV_KCSEL_K0);
 }
 
 // --- GXSetTevSwapMode ---

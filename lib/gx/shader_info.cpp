@@ -13,6 +13,47 @@ Module Log("aurora::gx");
 
 bool is_alpha_bump_channel(GXChannelID id) { return id == GX_ALPHA_BUMP || id == GX_ALPHA_BUMPN; }
 
+bool uses_konst(const TevStage& stage) {
+  return stage.colorPass.a == GX_CC_KONST || stage.colorPass.b == GX_CC_KONST || stage.colorPass.c == GX_CC_KONST ||
+         stage.colorPass.d == GX_CC_KONST || stage.alphaPass.a == GX_CA_KONST || stage.alphaPass.b == GX_CA_KONST ||
+         stage.alphaPass.c == GX_CA_KONST || stage.alphaPass.d == GX_CA_KONST;
+}
+
+float konst_fraction(u32 sel) { return static_cast<float>(8 - sel) / 8.f; }
+
+Vec4<float> resolve_konst(GXTevKColorSel kcSel, GXTevKAlphaSel kaSel) {
+  const auto& kcolors = g_gxState.kcolors;
+  Vec4<float> out{0.f, 0.f, 0.f, 0.f};
+  if (kcSel <= GX_TEV_KCSEL_1_8) {
+    const float f = konst_fraction(kcSel);
+    out[0] = f;
+    out[1] = f;
+    out[2] = f;
+  } else if (kcSel >= GX_TEV_KCSEL_K0 && kcSel <= GX_TEV_KCSEL_K3) {
+    const auto& kc = kcolors[kcSel - GX_TEV_KCSEL_K0];
+    out[0] = kc[0];
+    out[1] = kc[1];
+    out[2] = kc[2];
+  } else if (kcSel >= GX_TEV_KCSEL_K0_R && kcSel <= GX_TEV_KCSEL_K3_A) {
+    const u32 idx = kcSel - GX_TEV_KCSEL_K0_R;
+    const float f = kcolors[idx & 3][idx >> 2];
+    out[0] = f;
+    out[1] = f;
+    out[2] = f;
+  } else {
+    FATAL("invalid kcSel {}", underlying(kcSel));
+  }
+  if (kaSel <= GX_TEV_KASEL_1_8) {
+    out[3] = konst_fraction(kaSel);
+  } else if (kaSel >= GX_TEV_KASEL_K0_R && kaSel <= GX_TEV_KASEL_K3_A) {
+    const u32 idx = kaSel - GX_TEV_KASEL_K0_R;
+    out[3] = kcolors[idx & 3][idx >> 2];
+  } else {
+    FATAL("invalid kaSel {}", underlying(kaSel));
+  }
+  return out;
+}
+
 Vec4<float> texture_size_bias(const gfx::TextureBind& tex) {
   auto width = static_cast<float>(tex.texObj.width());
   auto height = static_cast<float>(tex.texObj.height());
@@ -85,40 +126,6 @@ void color_arg_reg_info(GXTevColorArg arg, const TevStage& stage, ShaderInfo& in
       info.sampledColorChannels.set(color_channel(stage.channelId));
     }
     break;
-  case GX_CC_KONST:
-    switch (stage.kcSel) {
-    case GX_TEV_KCSEL_K0:
-    case GX_TEV_KCSEL_K0_R:
-    case GX_TEV_KCSEL_K0_G:
-    case GX_TEV_KCSEL_K0_B:
-    case GX_TEV_KCSEL_K0_A:
-      info.sampledKColors.set(0);
-      break;
-    case GX_TEV_KCSEL_K1:
-    case GX_TEV_KCSEL_K1_R:
-    case GX_TEV_KCSEL_K1_G:
-    case GX_TEV_KCSEL_K1_B:
-    case GX_TEV_KCSEL_K1_A:
-      info.sampledKColors.set(1);
-      break;
-    case GX_TEV_KCSEL_K2:
-    case GX_TEV_KCSEL_K2_R:
-    case GX_TEV_KCSEL_K2_G:
-    case GX_TEV_KCSEL_K2_B:
-    case GX_TEV_KCSEL_K2_A:
-      info.sampledKColors.set(2);
-      break;
-    case GX_TEV_KCSEL_K3:
-    case GX_TEV_KCSEL_K3_R:
-    case GX_TEV_KCSEL_K3_G:
-    case GX_TEV_KCSEL_K3_B:
-    case GX_TEV_KCSEL_K3_A:
-      info.sampledKColors.set(3);
-      break;
-    default:
-      break;
-    }
-    break;
   default:
     break;
   }
@@ -158,36 +165,6 @@ void alpha_arg_reg_info(GXTevAlphaArg arg, const TevStage& stage, ShaderInfo& in
     if (stage.channelId != GX_COLOR_NULL && stage.channelId != GX_COLOR_ZERO &&
         !is_alpha_bump_channel(stage.channelId)) {
       info.sampledColorChannels.set(color_channel(stage.channelId));
-    }
-    break;
-  case GX_CA_KONST:
-    switch (stage.kaSel) {
-    case GX_TEV_KASEL_K0_R:
-    case GX_TEV_KASEL_K0_G:
-    case GX_TEV_KASEL_K0_B:
-    case GX_TEV_KASEL_K0_A:
-      info.sampledKColors.set(0);
-      break;
-    case GX_TEV_KASEL_K1_R:
-    case GX_TEV_KASEL_K1_G:
-    case GX_TEV_KASEL_K1_B:
-    case GX_TEV_KASEL_K1_A:
-      info.sampledKColors.set(1);
-      break;
-    case GX_TEV_KASEL_K2_R:
-    case GX_TEV_KASEL_K2_G:
-    case GX_TEV_KASEL_K2_B:
-    case GX_TEV_KASEL_K2_A:
-      info.sampledKColors.set(2);
-      break;
-    case GX_TEV_KASEL_K3_R:
-    case GX_TEV_KASEL_K3_G:
-    case GX_TEV_KASEL_K3_B:
-    case GX_TEV_KASEL_K3_A:
-      info.sampledKColors.set(3);
-      break;
-    default:
-      break;
     }
     break;
   default:
@@ -235,6 +212,9 @@ ShaderInfo build_shader_info(const ShaderConfig& config) noexcept {
     alpha_arg_reg_info(stage.alphaPass.b, stage, info, writtenAlpha);
     alpha_arg_reg_info(stage.alphaPass.c, stage, info, writtenAlpha);
     alpha_arg_reg_info(stage.alphaPass.d, stage, info, writtenAlpha);
+    if (uses_konst(stage)) {
+      info.konstStages.set(i);
+    }
 
     // Color writes only touch rgb; alpha writes only touch a. A register first
     // touched by an alpha-only write still needs its rgb loaded (and vice versa
@@ -325,7 +305,7 @@ ShaderInfo build_shader_info(const ShaderConfig& config) noexcept {
       }
     }
   }
-  info.uniformSize += info.sampledKColors.count() * sizeof(Vec4<float>);
+  info.uniformSize += info.konstStages.count() * sizeof(Vec4<float>);
   for (int i = 0; i < info.sampledTexCoords.size(); ++i) {
     if (!info.sampledTexCoords.test(i)) {
       continue;
@@ -477,9 +457,9 @@ gfx::Range build_uniform(const ShaderInfo& info, u32 vtxStart, const BindGroupRa
       buf.append(ccsa.matColor);
     }
   }
-  for (int i = 0; i < info.sampledKColors.size(); ++i) {
-    if (info.sampledKColors.test(i)) {
-      buf.append(g_gxState.kcolors[i]);
+  for (int i = 0; i < info.konstStages.size(); ++i) {
+    if (info.konstStages.test(i)) {
+      buf.append(resolve_konst(g_gxState.tevKColorSels[i], g_gxState.tevKAlphaSels[i]));
     }
   }
   if (info.usesPTTexMtx.any()) {

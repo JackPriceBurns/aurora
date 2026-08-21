@@ -20,6 +20,8 @@ bool aurora_dvd_open(const char* disc_path);
  */
 void aurora_dvd_close(void);
 
+void aurora_dvd_process_callbacks(void);
+
 /**
  * OVERLAY FILES!
  *

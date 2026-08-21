@@ -621,6 +621,24 @@ static Sint16 _get_axis_value(const aurora::input::GameController* controller, /
   return 0;
 }
 
+static void apply_radial_deadzone(Sint16& x, Sint16& y, const u16 deadZone) {
+  const double dx = x;
+  const double dy = y;
+  const double magnitude = std::sqrt(dx * dx + dy * dy);
+  const double clampedDeadZone = std::min<double>(deadZone, SDL_JOYSTICK_AXIS_MAX - 1);
+
+  if (magnitude <= clampedDeadZone) {
+    x = 0;
+    y = 0;
+    return;
+  }
+
+  const double scale = std::min(1.0, (magnitude - clampedDeadZone) * SDL_JOYSTICK_AXIS_MAX /
+                                         (magnitude * (SDL_JOYSTICK_AXIS_MAX - clampedDeadZone)));
+  x = static_cast<Sint16>(std::lround(dx * scale));
+  y = static_cast<Sint16>(std::lround(dy * scale));
+}
+
 static void neutralize_status(PADStatus& status) {
   status.button = 0;
   status.stickX = 0;
@@ -817,23 +835,12 @@ u32 PADRead(PADStatus* status) {
       const auto ylNeg = _get_axis_value(controller, PAD_AXIS_LEFT_Y_NEG);
 
       auto xl = static_cast<Sint16>((xlPos + -xlNeg) / 2);
-      // SDL's gamepad y-axis is inverted from GC's
       auto yl = static_cast<Sint16>((-ylPos + ylNeg) / 2);
       if (controller->m_deadZones.useDeadzones) {
-        if (std::abs(xl) > controller->m_deadZones.stickDeadZone) {
-          xl /= 256;
-        } else {
-          xl = 0;
-        }
-        if (std::abs(yl) > controller->m_deadZones.stickDeadZone) {
-          yl = static_cast<Sint16>(-(yl + 1u) / 256u);
-        } else {
-          yl = 0;
-        }
-      } else {
-        xl /= 256;
-        yl = static_cast<Sint16>(-(yl + 1u) / 256u);
+        apply_radial_deadzone(xl, yl, controller->m_deadZones.stickDeadZone);
       }
+      xl /= 256;
+      yl = static_cast<Sint16>(-(yl + 1u) / 256u);
 
       status[i].stickX = static_cast<int8_t>(xl);
       status[i].stickY = static_cast<int8_t>(yl);
@@ -844,24 +851,12 @@ u32 PADRead(PADStatus* status) {
       const auto yrNeg = _get_axis_value(controller, PAD_AXIS_RIGHT_Y_NEG);
 
       auto xr = static_cast<Sint16>((xrPos + -xrNeg) / 2);
-      // SDL's gamepad y-axis is inverted from GC's
       auto yr = static_cast<Sint16>((-yrPos + yrNeg) / 2);
       if (controller->m_deadZones.useDeadzones) {
-        if (std::abs(xr) > controller->m_deadZones.substickDeadZone) {
-          xr /= 256;
-        } else {
-          xr = 0;
-        }
-
-        if (std::abs(yr) > controller->m_deadZones.substickDeadZone) {
-          yr = static_cast<Sint16>(-(yr + 1u) / 256u);
-        } else {
-          yr = 0;
-        }
-      } else {
-        xr /= 256;
-        yr = static_cast<Sint16>(-(yr + 1u) / 256u);
+        apply_radial_deadzone(xr, yr, controller->m_deadZones.substickDeadZone);
       }
+      xr /= 256;
+      yr = static_cast<Sint16>(-(yr + 1u) / 256u);
 
       status[i].substickX = static_cast<int8_t>(xr);
       status[i].substickY = static_cast<int8_t>(yr);

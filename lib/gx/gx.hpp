@@ -101,8 +101,6 @@ struct TevStage {
   TevPass<GXTevAlphaArg, GX_CA_ZERO> alphaPass;
   TevOp colorOp;
   TevOp alphaOp;
-  GXTevKColorSel kcSel = GX_TEV_KCSEL_1;
-  GXTevKAlphaSel kaSel = GX_TEV_KASEL_1;
   GXTexCoordID texCoordId = GX_TEXCOORD_NULL;
   GXTexMapID texMapId = GX_TEXMAP_NULL;
   GXChannelID channelId = GX_COLOR_NULL;
@@ -318,6 +316,8 @@ struct GXState {
   std::array<ColorChannelState, MaxColorChannels> colorChannelState;
   std::array<Light, GX::MaxLights> lights;
   std::array<TevStage, MaxTevStages> tevStages;
+  std::array<GXTevKColorSel, MaxTevStages> tevKColorSels{};
+  std::array<GXTevKAlphaSel, MaxTevStages> tevKAlphaSels{};
   std::array<gfx::TextureBind, MaxTextures> textures;
   std::array<GXTexObj_, MaxTextures> loadedTextures;
   std::array<GXTlutObj_, MaxTluts> loadedTluts;
@@ -477,7 +477,7 @@ struct GXBindGroups {
 struct ShaderInfo {
   std::bitset<MaxTexCoord> sampledTexCoords;
   std::bitset<MaxTextures> sampledTextures;
-  std::bitset<MaxKColors> sampledKColors;
+  std::bitset<MaxTevStages> konstStages;
   std::bitset<MaxColorChannels / 2> sampledColorChannels;
   std::bitset<MaxTevRegs> loadsTevReg;
   std::bitset<MaxTevRegs> writesTevReg;

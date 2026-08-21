@@ -877,12 +877,12 @@ static void handle_bp(u32 value, bool bigEndian) {
     u32 stage0 = kselIdx * 2;
     u32 stage1 = kselIdx * 2 + 1;
     if (stage0 < MaxTevStages) {
-      g_gxState.tevStages[stage0].kcSel = static_cast<GXTevKColorSel>(bp_get(value, 5, 4));
-      g_gxState.tevStages[stage0].kaSel = static_cast<GXTevKAlphaSel>(bp_get(value, 5, 9));
+      g_gxState.tevKColorSels[stage0] = static_cast<GXTevKColorSel>(bp_get(value, 5, 4));
+      g_gxState.tevKAlphaSels[stage0] = static_cast<GXTevKAlphaSel>(bp_get(value, 5, 9));
     }
     if (stage1 < MaxTevStages) {
-      g_gxState.tevStages[stage1].kcSel = static_cast<GXTevKColorSel>(bp_get(value, 5, 14));
-      g_gxState.tevStages[stage1].kaSel = static_cast<GXTevKAlphaSel>(bp_get(value, 5, 19));
+      g_gxState.tevKColorSels[stage1] = static_cast<GXTevKColorSel>(bp_get(value, 5, 14));
+      g_gxState.tevKAlphaSels[stage1] = static_cast<GXTevKAlphaSel>(bp_get(value, 5, 19));
     }
     g_gxState.stateDirty = true;
     break;

@@ -13,6 +13,26 @@
 #include <cmath>
 
 namespace {
+u16 sDispCopySrcHeight;
+
+u32 disp_copy_lines(u32 efbHeight, u32 scale) {
+  if (efbHeight == 0 || scale == 0) {
+    return 0;
+  }
+
+  u32 height = ((efbHeight - 1) * 0x100) / scale + 1;
+  u32 divisor = scale;
+  if (divisor > 0x80 && divisor < 0x100) {
+    while ((divisor & 1) == 0) {
+      divisor >>= 1;
+    }
+    if (efbHeight % divisor == 0) {
+      height++;
+    }
+  }
+  return std::min(height, 0x400u);
+}
+
 aurora::Vec2<uint32_t> scale_copy_dst(u32 logicalWidth, u32 logicalHeight) {
   if (g_gxState.viewportPolicy == AURORA_VIEWPORT_NATIVE) {
     return {logicalWidth, logicalHeight};
@@ -161,7 +181,12 @@ void GXAdjustForOverscan(GXRenderModeObj* rmin, GXRenderModeObj* rmout, u16 hor,
   rmout->xfbHeight = size.fb_height;
 }
 
-void GXSetDispCopySrc(u16 left, u16 top, u16 wd, u16 ht) {}
+void GXSetDispCopySrc(u16 left, u16 top, u16 wd, u16 ht) {
+  (void)left;
+  (void)top;
+  (void)wd;
+  sDispCopySrcHeight = ht;
+}
 
 void GXSetTexCopySrc(u16 left, u16 top, u16 wd, u16 ht) {
   GX_WRITE_AURORA(GX_AURORA_LOAD_COPY_SRC);
@@ -184,7 +209,14 @@ void GXSetTexCopyDst(u16 wd, u16 ht, GXTexFmt fmt, GXBool mipmap) {
 // TODO GXSetDispCopyFrame2Field
 // TODO GXSetCopyClamp
 
-u32 GXSetDispCopyYScale(f32 vscale) { return 0; }
+u32 GXSetDispCopyYScale(f32 vscale) {
+  const u32 scale = static_cast<u32>(256.0f / vscale) & 0x1ff;
+  u32 reg = 0;
+  SET_REG_FIELD(0, reg, 9, 0, scale);
+  SET_REG_FIELD(0, reg, 8, 24, 0x4e);
+  GX_WRITE_RAS_REG(reg);
+  return disp_copy_lines(sDispCopySrcHeight, scale);
+}
 
 void GXSetCopyClear(GXColor color, u32 depth) {
   // BP 0x4F: clear color R + A
