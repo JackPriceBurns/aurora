@@ -684,7 +684,7 @@ auto lighting_func(const ShaderConfig& config, const ColorChannelConfig& cc, u8 
           var cosine = max(0.0, dot(ldir, light.dir));
           var cos_attn = dot(light.cos_att, vec3f(1.0, cosine, cosine * cosine));
           var dist_attn = dot(light.dist_att, vec3f(1.0, dist, dist2));
-          attn = max(0.0, cos_attn / dist_attn);)""");
+          attn = select(0.0, max(0.0, cos_attn / dist_attn), dist_attn > 1e-8);)""");
   } else if (cc.attnFn == GX_AF_SPEC) {
     std::string_view normal = UsePerPixelLighting ? "in.mv_nrm"sv : "mv_nrm"sv;
     std::string dist_attn = diffFn != GX_DF_NONE
@@ -694,7 +694,7 @@ auto lighting_func(const ShaderConfig& config, const ColorChannelConfig& cc, u8 
           attn = select(0.0, max(0.0, dot({0}, light.dir)), dot({0}, ldir) >= 0.0);
           var cos_attn = dot(light.cos_att, vec3f(1.0, attn, attn * attn));
           var dist_attn = {1};
-          attn = max(0.0, cos_attn / dist_attn);)""",
+          attn = select(0.0, max(0.0, cos_attn / dist_attn), dist_attn > 1e-8);)""",
                               normal, dist_attn);
   }
   std::string_view lightDiffFn;
@@ -722,7 +722,7 @@ auto lighting_func(const ShaderConfig& config, const ColorChannelConfig& cc, u8 
           var ldir = light.pos - {6};
           var dist2 = dot(ldir, ldir);
           var dist = sqrt(dist2);
-          ldir = ldir / dist;
+          ldir = select(vec3f(0.0), ldir / dist, dist > 1e-10);
           var attn: f32;{2}
           var diff = {3};
           lighting = lighting + (attn * diff * light.color);
