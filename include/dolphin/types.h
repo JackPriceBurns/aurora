@@ -73,7 +73,7 @@ typedef int BOOL;
 #if defined(__MWERKS__)
 #define AT_ADDRESS(addr) : (addr)
 #define ATTRIBUTE_ALIGN(num) __attribute__((aligned(num)))
-#elif defined(__GNUC__)
+#elif defined(__GNUC__) || defined(__clang__)
 #define AT_ADDRESS(addr)
 #define ATTRIBUTE_ALIGN(num) __attribute__((aligned(num)))
 #elif defined(_MSC_VER)
