@@ -240,6 +240,11 @@ wgpu::PresentMode select_present_mode(const wgpu::SurfaceCapabilities& capabilit
     return false;
   };
   if (vsync_enabled()) {
+    // Fifo blocks presentation until scanout, which stalls the render worker and starves the
+    // frame/staging pools. Mailbox is equally tear-free but lets the worker keep draining.
+    if (g_backendType != wgpu::BackendType::Metal && supports(wgpu::PresentMode::Mailbox)) {
+      return wgpu::PresentMode::Mailbox;
+    }
     if (supports(wgpu::PresentMode::FifoRelaxed)) {
       return wgpu::PresentMode::FifoRelaxed;
     }
